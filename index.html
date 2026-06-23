@@ -123,7 +123,7 @@ body{font-family:'PingFang SC','Microsoft YaHei',-apple-system,sans-serif;backgr
 </div>
 
 <script>
-const API_KEY = "sk-ws-H.RYMLDHE.whau.MEYCIQDquxZlik8DU5m2K0mSSHGKcwkdJPYVXjgO98gGtq3H-QIhAIPwVswRmUE9XKvHpTOzM6LmgqD21SL69VlG5HPH8MLw";
+const WORKER_URL = "https://gmv-report-proxy.your-subdomain.workers.dev";  // ← 部署 Worker 后替换成你的实际地址
 let gmvB64 = null, top10B64 = null, ctxWhich = null, pasteWhich = null;
 
 // ===== Upload setup =====
@@ -298,21 +298,18 @@ function top10Prompt() {
 【重要】商品名称必须完整，不要截断。如果名称很长，也要完整输出。`;
 }
 async function callAI(prompt, b64) {
-    const body = {
-        model: 'qwen-vl-max',
-        messages: [{ role: 'user', content: [
-            { type: 'text', text: prompt },
-            { type: 'image_url', image_url: { url: 'data:image/png;base64,' + b64 } }
-        ]}]
-    };
-    const resp = await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', {
+    const resp = await fetch(WORKER_URL + '/api/generate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + API_KEY },
-        body: JSON.stringify(body)
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: prompt, image: 'data:image/png;base64,' + b64 })
     });
-    if (!resp.ok) throw new Error('API错误 ' + resp.status);
+    if (!resp.ok) {
+        const errData = await resp.json().catch(() => ({}));
+        throw new Error(errData.error || '请求失败 ' + resp.status);
+    }
     const data = await resp.json();
-    return data.choices[0].message.content.trim();
+    if (!data.success) throw new Error(data.error || '生成失败');
+    return data.result;
 }
 function showErr(msg) {
     const e = document.getElementById('errorMsg');
