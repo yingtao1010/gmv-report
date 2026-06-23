@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GMV 日报生成器</title>
+<style>
+* { box-sizing: border-box; margin:0; padding:0; }
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 40px 20px;
+}
+.container {
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+    max-width: 800px;
+    width: 100%;
+    overflow: hidden;
+}
+.header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #fff;
+    padding: 24px 32px;
+}
+.header h1 { font-size: 22px; font-weight: 600; }
+.header p { font-size: 13px; opacity: 0.85; margin-top: 4px; }
+.body { padding: 32px; }
+
+.upload-section {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 24px;
+}
+.upload-box {
+    border: 2px dashed #d0d5dd;
+    border-radius: 12px;
+    padding: 28px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: #fafbfc;
+    position: relative;
+}
+.upload-box:hover { border-color: #667eea; background: #f0f2ff; }
+.upload-box.has-image { border-color: #34c759; background: #f0faf3; }
+.upload-box input[type="file"] { display: none; }
+.upload-icon { font-size: 36px; margin-bottom: 8px; }
+.upload-label { font-size: 14px; color: #344054; font-weight: 500; }
+.upload-hint { font-size: 12px; color: #98a2b3; margin-top: 4px; }
+.preview-img {
+    max-width: 100%;
+    max-height: 130px;
+    border-radius: 8px;
+    margin-top: 12px;
+    object-fit: contain;
+}
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 32px;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s;
+    width: 100%;
+}
+.btn-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(102,126,234,0.4);
+}
+.btn-primary:hover { transform: translateY(-1px); }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+.btn-secondary {
+    background: #f2f4f7;
+    color: #344054;
+    margin-top: 10px;
+}
+.btn-secondary:hover { background: #e4e7ec; }
+.loading {
+    display: none;
+    text-align: center;
+    padding: 20px;
+    color: #667eea;
+    font-size: 14px;
+}
+.loading.show { display: block; }
+.spinner {
+    display: inline-block;
+    width: 20px; height: 20px;
+    border: 3px solid #e4e7ec;
+    border-top-color: #667eea;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    vertical-align: middle;
+    margin-right: 8px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.result-section { display: none; margin-top: 24px; }
+.result-section.show { display: block; }
+.result-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+.result-header h3 { font-size: 16px; color: #1d2939; }
+.copy-btn {
+    padding: 6px 16px;
+    background: #f2f4f7;
+    border: none;
+    border-radius: 8px;
+    font-size: 13px;
+    color: #344054;
+    cursor: pointer;
+    font-weight: 500;
+}
+.copy-btn:hover { background: #e4e7ec; }
+.copy-btn.copied { background: #d1fae5; color: #065f46; }
+.report-box {
+    background: #f9fafb;
+    border: 1px solid #e4e7ec;
+    border-radius: 12px;
+    padding: 20px;
+    font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+    font-size: 13.5px;
+    line-height: 1.8;
+    color: #1d2939;
+    white-space: pre-wrap;
+    max-height: 500px;
+    overflow-y: auto;
+}
+.error-msg {
+    display: none;
+    background: #fef3f2;
+    border: 1px solid #fecdca;
+    color: #d92d20;
+    padding: 12px 16px;
+    border-radius: 10px;
+    font-size: 13px;
+    margin-top: 16px;
+    white-space: pre-wrap;
+}
+.error-msg.show { display: block; }
+.paste-toast {
+    display: none;
+    position: fixed;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+    padding: 32px 36px;
+    z-index: 1000;
+    text-align: center;
+}
+.paste-toast.show { display: block; }
+.paste-toast h4 { font-size: 16px; color: #1d2939; margin-bottom: 16px; }
+.paste-toast .btn-small {
+    padding: 10px 28px;
+    border-radius: 10px;
+    border: none;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    margin: 0 8px;
+    transition: all 0.15s;
+}
+.btn-gmv {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #fff;
+}
+.btn-top10 { background: #f2f4f7; color: #344054; }
+.btn-top10:hover { background: #e4e7ec; }
+.toast-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.3);
+    z-index: 999;
+}
+.toast-overlay.show { display: block; }
+.paste-hint {
+    font-size: 12px;
+    color: #98a2b3;
+    margin-top: 12px;
+    text-align: center;
+    display: none;
+}
+.paste-hint.show { display: block; }
+
+/* 右键菜单 */
+.context-menu {
+    display: none;
+    position: fixed;
+    z-index: 2000;
+    background: #fff;
+    border-radius: 10px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.18);
+    padding: 6px 0;
+    min-width: 160px;
+    font-size: 13px;
+    user-select: none;
+}
+.context-menu.show { display: block; }
+.ctx-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 18px;
+    cursor: pointer;
+    color: #344054;
+    transition: background 0.1s;
+}
+.ctx-item:hover { background: #f0f2ff; color: #667eea; }
+.ctx-item.disabled { color: #c4c9d4; cursor: not-allowed; }
+.ctx-item.disabled:hover { background: transparent; color: #c4c9d4; }
+.ctx-sep { height: 1px; background: #f2f4f7; margin: 4px 0; }
+
+@media (max-width: 600px) {
+    .upload-section { grid-template-columns: 1fr; }
+    .body { padding: 20px; }
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <h1>📊 GMV 日报生成器</h1>
+        <p>上传或粘贴截图，AI 自动识别并生成标准格式日报</p>
+    </div>
+    <div class="body">
+        <div class="upload-section">
+            <div class="upload-box" id="gmvBox" onclick="document.getElementById('gmvInput').click()">
+                <div class="upload-icon">📊</div>
+                <div class="upload-label">GMV 数据截图</div>
+                <div class="upload-hint">点击上传、拖拽，或右键/粘贴</div>
+                <input type="file" id="gmvInput" accept="image/*" onchange="handleFile(this,'gmv')">
+                <img id="gmvPreview" class="preview-img" style="display:none">
+            </div>
+            <div class="upload-box" id="top10Box" onclick="document.getElementById('top10Input').click()">
+                <div class="upload-icon">🛒</div>
+                <div class="upload-label">Top10 商品截图</div>
+                <div class="upload-hint">点击上传、拖拽，或右键/粘贴</div>
+                <input type="file" id="top10Input" accept="image/*" onchange="handleFile(this,'top10')">
+                <img id="top10Preview" class="preview-img" style="display:none">
+            </div>
+        </div>
+
+        <button class="btn btn-primary" id="submitBtn" onclick="generateReport()">
+            ⚡ 生成日报
+        </button>
+        <button class="btn btn-secondary" onclick="resetAll()">🔄 重新上传</button>
+
+        <div class="loading" id="loading">
+            <span class="spinner"></span>AI 正在识别图片，请稍候…
+        </div>
+        <div class="error-msg" id="errorMsg"></div>
+
+        <div class="result-section" id="resultSection">
+            <div class="result-header">
+                <h3>📝 生成结果</h3>
+                <button class="copy-btn" id="copyBtn" onclick="copyReport()">📋 复制</button>
+            </div>
+            <div class="report-box" id="reportBox"></div>
+        </div>
+
+        <div class="paste-hint" id="pasteHint">💡 提示：截图后直接按 Ctrl+V 粘贴到本页面</div>
+    </div>
+</div>
+
+<!-- 粘贴选择弹窗 -->
+<div class="toast-overlay" id="toastOverlay"></div>
+<div class="paste-toast" id="pasteToast">
+    <h4>🖼️ 检测到截图，请选择类型</h4>
+    <button class="btn-small btn-gmv" onclick="confirmPasteType('gmv')">📊 GMV 数据截图</button>
+    <button class="btn-small btn-top10" onclick="confirmPasteType('top10')">🛒 Top10 商品截图</button>
+</div>
+
+<!-- 右键菜单 -->
+<div class="context-menu" id="ctxMenu">
+    <div class="ctx-item" onclick="ctxPasteImage()">📋 粘贴图片</div>
+    <div class="ctx-sep"></div>
+    <div class="ctx-item" onclick="ctxUploadImage()">📂 上传图片文件</div>
+    <div class="ctx-sep"></div>
+    <div class="ctx-item" id="ctxClearImg" onclick="ctxClearImage()">🗑️ 清除图片</div>
+</div>
+
+<script>
+let gmvBase64 = null;
+let top10Base64 = null;
+let pendingPasteFile = null;
+let ctxCurrentType = null;
+
+// ========== 拖拽上传 ==========
+['gmvBox','top10Box'].forEach(function(id) {
+    var box = document.getElementById(id);
+    box.addEventListener('dragover', function(e) { e.preventDefault(); box.style.borderColor = '#667eea'; });
+    box.addEventListener('dragleave', function() { box.style.borderColor = '#d0d5dd'; });
+    box.addEventListener('drop', function(e) {
+        e.preventDefault();
+        box.style.borderColor = '#d0d5dd';
+        var file = e.dataTransfer.files[0];
+        if (file && file.type.startsWith('image/')) {
+            setFile(file, box.id === 'gmvBox' ? 'gmv' : 'top10');
+        }
+    });
+});
+
+function handleFile(input, type) {
+    if (input.files[0]) setFile(input.files[0], type);
+}
+
+function setFile(file, type) {
+    var reader = new FileReader();
+    reader.onload = function(e) {
+        var base64 = e.target.result;
+        if (type === 'gmv') {
+            gmvBase64 = base64;
+            document.getElementById('gmvBox').classList.add('has-image');
+            var prev = document.getElementById('gmvPreview');
+            prev.src = base64; prev.style.display = 'block';
+        } else {
+            top10Base64 = base64;
+            document.getElementById('top10Box').classList.add('has-image');
+            var prev = document.getElementById('top10Preview');
+            prev.src = base64; prev.style.display = 'block';
+        }
+        document.getElementById('pasteHint').classList.remove('show');
+    };
+    reader.readAsDataURL(file);
+}
+
+// ========== 粘贴图片 ==========
+document.addEventListener('paste', function(e) {
+    var cbd = e.clipboardData;
+    if (!cbd) return;
+    var imageFile = null;
+    var items = cbd.items;
+    if (items) {
+        for (var i = 0; i < items.length; i++) {
+            if (items[i].kind === 'file' && items[i].type.startsWith('image/')) {
+                imageFile = items[i].getAsFile(); break;
+            }
+        }
+    }
+    if (!imageFile) return;
+    e.preventDefault();
+    pendingPasteFile = imageFile;
+    var gmvEmpty = !gmvBase64;
+    var top10Empty = !top10Base64;
+    if (gmvEmpty && top10Empty) { showPasteToast(); }
+    else if (gmvEmpty) { assignPaste('gmv'); }
+    else if (top10Empty) { assignPaste('top10'); }
+    else { assignPaste('gmv'); }
+});
+
+function showPasteToast() {
+    document.getElementById('toastOverlay').classList.add('show');
+    document.getElementById('pasteToast').classList.add('show');
+}
+function hidePasteToast() {
+    document.getElementById('toastOverlay').classList.remove('show');
+    document.getElementById('pasteToast').classList.remove('show');
+}
+function confirmPasteType(type) {
+    hidePasteToast();
+    if (pendingPasteFile) { assignPaste(type); pendingPasteFile = null; }
+}
+function assignPaste(type) {
+    if (!pendingPasteFile) return;
+    var reader = new FileReader();
+    reader.onload = function(e) {
+        var base64 = e.target.result;
+        if (type === 'gmv') {
+            gmvBase64 = base64;
+            document.getElementById('gmvBox').classList.add('has-image');
+            document.getElementById('gmvPreview').src = base64;
+            document.getElementById('gmvPreview').style.display = 'block';
+        } else {
+            top10Base64 = base64;
+            document.getElementById('top10Box').classList.add('has-image');
+            document.getElementById('top10Preview').src = base64;
+            document.getElementById('top10Preview').style.display = 'block';
+        }
+        document.getElementById('pasteHint').classList.remove('show');
+    };
+    reader.readAsDataURL(pendingPasteFile);
+    pendingPasteFile = null;
+}
+
+// ========== 右键菜单 ==========
+['gmvBox','top10Box'].forEach(function(id) {
+    var box = document.getElementById(id);
+    box.addEventListener('contextmenu', function(e) {
+        e.preventDefault();
+        ctxCurrentType = id === 'gmvBox' ? 'gmv' : 'top10';
+        var menu = document.getElementById('ctxMenu');
+        var x = e.clientX, y = e.clientY;
+        if (x + 170 > window.innerWidth) x = window.innerWidth - 178;
+        if (y + 130 > window.innerHeight) y = window.innerHeight - 138;
+        menu.style.left = x + 'px'; menu.style.top = y + 'px';
+        menu.classList.add('show');
+        var hasImg = ctxCurrentType === 'gmv' ? !!gmvBase64 : !!top10Base64;
+        document.getElementById('ctxClearImg').classList.toggle('disabled', !hasImg);
+    });
+});
+document.addEventListener('click', function() {
+    document.getElementById('ctxMenu').classList.remove('show');
+});
+async function ctxPasteImage() {
+    document.getElementById('ctxMenu').classList.remove('show');
+    if (!ctxCurrentType) return;
+    try {
+        var items = await navigator.clipboard.read();
+        for (var item of items) {
+            for (var type of item.types) {
+                if (type.startsWith('image/')) {
+                    var blob = await item.getType(type);
+                    setFile(new File([blob], 'clipboard.png', {type: blob.type}), ctxCurrentType);
+                    return;
+                }
+            }
+        }
+        showError('剪贴板中没有图片');
+    } catch (e) { showError('无法读取剪贴板，请直接用 Ctrl+V 粘贴'); }
+}
+function ctxUploadImage() {
+    document.getElementById('ctxMenu').classList.remove('show');
+    if (!ctxCurrentType) return;
+    document.getElementById(ctxCurrentType === 'gmv' ? 'gmvInput' : 'top10Input').click();
+}
+function ctxClearImage() {
+    document.getElementById('ctxMenu').classList.remove('show');
+    if (!ctxCurrentType) return;
+    if (ctxCurrentType === 'gmv') {
+        gmvBase64 = null;
+        document.getElementById('gmvInput').value = '';
+        document.getElementById('gmvPreview').style.display = 'none';
+        document.getElementById('gmvBox').classList.remove('has-image');
+    } else {
+        top10Base64 = null;
+        document.getElementById('top10Input').value = '';
+        document.getElementById('top10Preview').style.display = 'none';
+        document.getElementById('top10Box').classList.remove('has-image');
+    }
+}
+
+// ========== 生成报告（调用后端 /api/analyze）==========
+async function generateReport() {
+    if (!gmvBase64 && !top10Base64) {
+        showError('请至少上传一张截图！'); return;
+    }
+    document.getElementById('loading').classList.add('show');
+    document.getElementById('resultSection').classList.remove('show');
+    document.getElementById('errorMsg').classList.remove('show');
+    document.getElementById('submitBtn').disabled = true;
+
+    var payload = {};
+    if (gmvBase64) payload.gmv_image = gmvBase64;
+    if (top10Base64) payload.top10_image = top10Base64;
+
+    try {
+        var resp = await fetch('/api/analyze', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        var data = await resp.json();
+        document.getElementById('loading').classList.remove('show');
+        if (data.success) {
+            document.getElementById('reportBox').textContent = data.report;
+            document.getElementById('resultSection').classList.add('show');
+        } else {
+            showError('生成失败：' + (data.error || '未知错误'));
+        }
+    } catch (e) {
+        document.getElementById('loading').classList.remove('show');
+        showError('请求失败：' + e.message);
+    } finally {
+        document.getElementById('submitBtn').disabled = false;
+    }
+}
+
+function showError(msg) {
+    var el = document.getElementById('errorMsg');
+    el.textContent = msg; el.classList.add('show');
+}
+function copyReport() {
+    var text = document.getElementById('reportBox').textContent;
+    navigator.clipboard.writeText(text).then(function() {
+        var btn = document.getElementById('copyBtn');
+        btn.textContent = '✅ 已复制';
+        btn.classList.add('copied');
+        setTimeout(function() { btn.textContent = '📋 复制'; btn.classList.remove('copied'); }, 2000);
+    });
+}
+function resetAll() {
+    gmvBase64 = null; top10Base64 = null; pendingPasteFile = null; ctxCurrentType = null;
+    document.getElementById('gmvInput').value = '';
+    document.getElementById('top10Input').value = '';
+    document.getElementById('gmvPreview').style.display = 'none';
+    document.getElementById('top10Preview').style.display = 'none';
+    document.getElementById('gmvBox').classList.remove('has-image');
+    document.getElementById('top10Box').classList.remove('has-image');
+    document.getElementById('resultSection').classList.remove('show');
+    document.getElementById('errorMsg').classList.remove('show');
+    document.getElementById('pasteHint').classList.add('show');
+}
+
+window.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('pasteHint').classList.add('show');
+});
+</script>
+</body>
+</html>
