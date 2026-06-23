@@ -1,503 +1,336 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GMV 日报生成器</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif; background: linear-gradient(135deg, #e8f5e9 0%, #e3f2fd 100%); min-height: 100vh; padding: 20px; }
-        .container { max-width: 900px; margin: 0 auto; }
-        .header { text-align: center; margin-bottom: 30px; }
-        .header h1 { font-size: 28px; color: #1a1a2e; margin-bottom: 8px; }
-        .header p { color: #666; font-size: 14px; }
-        .upload-section { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 25px; }
-        .upload-box { background: white; border-radius: 16px; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); text-align: center; border: 2px dashed #c8e6c9; transition: all 0.3s; cursor: pointer; position: relative; }
-        .upload-box.has-image { border-color: #4caf50; background: #f1f8e9; }
-        .upload-box h3 { font-size: 15px; color: #333; margin-bottom: 12px; }
-        .upload-box input[type="file"] { display: none; }
-        .preview-img { max-width: 100%; max-height: 180px; border-radius: 8px; margin-top: 10px; display: none; }
-        .upload-label { display: inline-block; padding: 8px 18px; background: #4caf50; color: white; border-radius: 8px; cursor: pointer; font-size: 13px; margin-top: 8px; }
-        .upload-box small { display: block; color: #999; font-size: 11px; margin-top: 8px; }
-        .btn-generate { display: block; width: 100%; max-width: 400px; margin: 0 auto 25px; padding: 16px; background: linear-gradient(135deg, #43a047, #66bb6a); color: white; border: none; border-radius: 14px; font-size: 18px; font-weight: bold; cursor: pointer; box-shadow: 0 6px 20px rgba(76,175,80,0.4); transition: all 0.3s; letter-spacing: 2px; }
-        .btn-generate:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(76,175,80,0.5); }
-        .btn-generate:disabled { background: #ccc; cursor: not-allowed; box-shadow: none; }
-        .result-section { background: white; border-radius: 16px; padding: 25px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); display: none; }
-        .result-section.show { display: block; }
-        .result-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
-        .result-header h3 { font-size: 16px; color: #333; }
-        .copy-btn { padding: 8px 18px; background: #1976d2; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 13px; }
-        .copy-btn:hover { background: #1565c0; }
-        .report-box { background: #f5f5f5; border-radius: 10px; padding: 20px; white-space: pre-wrap; font-family: 'Consolas', 'Courier New', monospace; font-size: 14px; line-height: 1.8; color: #333; max-height: 500px; overflow-y: auto; }
-        .error-msg { background: #ffebee; color: #c62828; padding: 12px 18px; border-radius: 10px; margin-bottom: 15px; display: none; font-size: 13px; }
-        .error-msg.show { display: block; }
-        .loading { text-align: center; padding: 30px; color: #4caf50; font-size: 15px; display: none; }
-        .loading.show { display: block; }
-        .loading-spinner { display: inline-block; width: 28px; height: 28px; border: 3px solid #c8e6c9; border-top: 3px solid #4caf50; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 10px; }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        .context-menu { position: fixed; background: white; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); z-index: 999; display: none; overflow: hidden; min-width: 160px; }
-        .context-menu.show { display: block; }
-        .context-menu-item { padding: 10px 16px; cursor: pointer; font-size: 13px; color: #333; }
-        .context-menu-item:hover { background: #f5f5f5; }
-        .paste-hint { font-size: 12px; color: #999; margin-top: 12px; text-align: center; }
-        .toast-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.3); z-index:998; display:none; }
-        .toast-overlay.show { display: block; }
-        .paste-toast { position: fixed; top:50%; left:50%; transform: translate(-50%,-50%); background: white; border-radius: 16px; padding: 25px; z-index: 999; box-shadow: 0 8px 40px rgba(0,0,0,0.2); display: none; text-align: center; }
-        .paste-toast.show { display: block; }
-        .paste-toast h4 { margin-bottom: 15px; color: #333; }
-        .paste-toast button { margin: 6px; padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; }
-        .btn-small.btn-gmv { background: #e8f5e9; color: #2e7d32; }
-        .btn-small.btn-top10 { background: #e3f2fd; color: #1565c0; }
-        .btn-small:hover { opacity: 0.85; }
-        .api-key-section { background: white; border-radius: 12px; padding: 15px 20px; margin-bottom: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.06); display: flex; align-items: center; gap: 12px; }
-        .api-key-section label { font-size: 13px; color: #555; white-space: nowrap; }
-        .api-key-section input { flex: 1; padding: 8px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 13px; }
-        .api-key-section button { padding: 8px 16px; background: #4caf50; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 13px; white-space: nowrap; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GMV 日报生成器</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'PingFang SC','Microsoft YaHei',-apple-system,sans-serif;background:linear-gradient(135deg,#0f0c29 0%,#1a1a4e 30%,#24243e 60%,#0f0c29 100%);min-height:100vh;padding:20px;color:#e0e0e0}
+.container{max-width:960px;margin:0 auto}
+.header{text-align:center;margin-bottom:36px;padding-top:20px}
+.badge{display:inline-block;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.3);border-radius:20px;padding:5px 16px;font-size:12px;color:#a5b4fc;margin-bottom:16px;letter-spacing:1px}
+.header h1{font-size:34px;font-weight:800;background:linear-gradient(135deg,#c4b5fd,#818cf8,#6366f1);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:8px;letter-spacing:1px}
+.header p{color:#9ca3af;font-size:14px}
+.upload-section{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:28px}
+.upload-box{background:rgba(30,30,60,0.75);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1.5px dashed rgba(99,102,241,0.3);border-radius:20px;padding:28px 20px 22px;text-align:center;cursor:pointer;transition:all 0.35s cubic-bezier(0.4,0,0.2,1);position:relative;overflow:hidden}
+.upload-box:hover{border-color:rgba(129,140,248,0.7);transform:translateY(-3px);box-shadow:0 12px 40px rgba(99,102,241,0.15)}
+.upload-box.has-image{border-style:solid;border-color:rgba(52,211,153,0.5);background:rgba(20,60,45,0.4)}
+.upload-box.has-image::after{content:'✅ 已上传';position:absolute;top:10px;right:14px;font-size:11px;color:#34d399;font-weight:600}
+.upload-icon{width:52px;height:52px;border-radius:16px;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:26px;background:rgba(99,102,241,0.12)}
+.upload-box h3{font-size:15px;color:#e0e7ff;margin-bottom:6px;font-weight:600}
+.upload-box .hint{font-size:12px;color:#6b7280;line-height:1.7}
+.preview-img{max-width:100%;max-height:130px;border-radius:12px;margin-top:14px;display:none;box-shadow:0 4px 20px rgba(0,0,0,0.3)}
+.upload-input{display:none}
+.ctx-menu{display:none;position:fixed;background:rgba(30,30,60,0.97);backdrop-filter:blur(20px);border:1px solid rgba(99,102,241,0.25);border-radius:14px;padding:6px;z-index:9999;min-width:175px;box-shadow:0 16px 50px rgba(0,0,0,0.5)}
+.ctx-menu.show{display:block}
+.ctx-item{display:flex;align-items:center;gap:10px;padding:9px 14px;border-radius:10px;cursor:pointer;font-size:13px;color:#d1d5db;transition:all 0.2s}
+.ctx-item:hover{background:rgba(99,102,241,0.15);color:#e0e7ff}
+.ctx-sep{height:1px;background:rgba(99,102,241,0.12);margin:4px 8px}
+.toast-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);backdrop-filter:blur(4px);z-index:9998}
+.toast-overlay.show{display:flex;align-items:center;justify-content:center}
+.paste-toast{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(30,30,65,0.98);backdrop-filter:blur(24px);border:1px solid rgba(99,102,241,0.3);border-radius:22px;padding:32px 36px;z-index:9999;text-align:center;box-shadow:0 24px 80px rgba(0,0,0,0.6)}
+.paste-toast.show{display:block}
+.paste-toast h4{font-size:17px;color:#e0e7ff;margin-bottom:22px;font-weight:700}
+.toast-btns{display:flex;gap:12px;justify-content:center}
+.toast-btn{padding:11px 26px;border:none;border-radius:12px;font-size:14px;font-weight:600;cursor:pointer;transition:all 0.25s}
+.toast-btn.gmv-btn{background:linear-gradient(135deg,#6366f1,#818cf8);color:white}
+.toast-btn.top10-btn{background:linear-gradient(135deg,#059669,#34d399);color:white}
+.toast-btn:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,0.3)}
+.btn-generate{display:block;width:100%;max-width:480px;margin:0 auto 28px;padding:18px;background:linear-gradient(135deg,#6366f1 0%,#8b5cf6 50%,#a78bfa 100%);color:white;border:none;border-radius:16px;font-size:18px;font-weight:700;cursor:pointer;box-shadow:0 8px 32px rgba(99,102,241,0.35);transition:all 0.35s;letter-spacing:2px;position:relative;overflow:hidden}
+.btn-generate:hover{transform:translateY(-3px);box-shadow:0 14px 48px rgba(99,102,241,0.5)}
+.btn-generate:disabled{background:#374151;cursor:not-allowed;box-shadow:none;transform:none}
+.spinner{display:inline-block;width:18px;height:18px;border:2.5px solid rgba(255,255,255,0.3);border-top-color:white;border-radius:50%;animation:spin 0.7s linear infinite;margin-right:10px;vertical-align:middle}
+@keyframes spin{to{transform:rotate(360deg)}}
+.error-msg{display:none;max-width:480px;margin:-16px auto 22px;padding:12px 18px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:12px;color:#fca5a5;font-size:13px;text-align:center}
+.error-msg.show{display:block}
+.result-section{background:rgba(30,30,65,0.75);backdrop-filter:blur(16px);border:1px solid rgba(99,102,241,0.18);border-radius:22px;padding:30px;display:none;box-shadow:0 8px 40px rgba(0,0,0,0.3)}
+.result-section.show{display:block;animation:fadeUp 0.5s ease}
+@keyframes fadeUp{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
+.result-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid rgba(99,102,241,0.12)}
+.result-header h3{font-size:18px;color:#e0e7ff;font-weight:700}
+.copy-btn{padding:9px 22px;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.3);border-radius:10px;color:#a5b4fc;font-size:13.5px;font-weight:600;cursor:pointer;transition:all 0.25s}
+.copy-btn:hover{background:rgba(99,102,241,0.28);color:white;border-color:rgba(99,102,241,0.55)}
+.copy-btn.copied{background:rgba(52,211,153,0.15);border-color:rgba(52,211,153,0.4);color:#34d399}
+.report-box{background:rgba(15,15,35,0.7);border:1px solid rgba(99,102,241,0.1);border-radius:16px;padding:24px 28px;font-size:14.5px;line-height:2;color:#d1d5db;white-space:pre-wrap;font-family:'PingFang SC','Microsoft YaHei',monospace;max-height:520px;overflow-y:auto}
+.report-box::-webkit-scrollbar{width:5px}
+.report-box::-webkit-scrollbar-track{background:transparent}
+.report-box::-webkit-scrollbar-thumb{background:rgba(99,102,241,0.3);border-radius:3px}
+.footer{text-align:center;margin-top:40px;padding-bottom:24px;font-size:12px;color:#4b5563}
+@media(max-width:640px){.upload-section{grid-template-columns:1fr}.header h1{font-size:26px}.result-section{padding:20px 16px}.report-box{padding:16px;font-size:13px}}
+</style>
 </head>
 <body>
+
 <div class="container">
-    <div class="header">
-        <h1>📊 GMV 日报生成器</h1>
-        <p>粘贴截图，AI 自动识别并生成标准格式日报</p>
-    </div>
-
-    <div class="api-key-section">
-        <label>🔑 API Key：</label>
-        <input type="text" id="apiKeyInput" placeholder="输入 DashScope API Key（sk-开头）" />
-        <button onclick="saveApiKey()">💾 保存</button>
-        <small id="apiKeyStatus" style="color:#4caf50;display:none;">✅ 已保存</small>
-    </div>
-
-    <div class="upload-section">
-        <div class="upload-box" id="gmvBox" onclick="document.getElementById('gmvInput').click()" oncontextmenu="showContextMenu(event,'gmv')">
-            <h3>📊 GMV 数据截图</h3>
-            <label class="upload-label" onclick="event.stopPropagation()">📂 上传图片</label>
-            <input type="file" id="gmvInput" accept="image/*" onchange="handleFile(event,'gmv')" />
-            <img id="gmvPreview" class="preview-img" />
-            <small>支持点击、拖拽、Ctrl+V 粘贴</small>
-        </div>
-        <div class="upload-box" id="top10Box" onclick="document.getElementById('top10Input').click()" oncontextmenu="showContextMenu(event,'top10')">
-            <h3>🛒 Top10 商品截图</h3>
-            <label class="upload-label" onclick="event.stopPropagation()">📂 上传图片</label>
-            <input type="file" id="top10Input" accept="image/*" onchange="handleFile(event,'top10')" />
-            <img id="top10Preview" class="preview-img" />
-            <small>支持点击、拖拽、Ctrl+V 粘贴</small>
-        </div>
-    </div>
-
-    <div class="paste-hint">💡 截图后直接按 <b>Ctrl+V</b> 粘贴到页面，或右键上传区域选择图片</div>
-
-    <button class="btn-generate" id="generateBtn" onclick="generateReport()">⚡ 生成日报</button>
-
-    <div class="error-msg" id="errorMsg"></div>
-    <div class="loading" id="loading">
-        <div class="loading-spinner"></div><br/>
-        AI 正在识别图片，请稍候...
-    </div>
-
-    <div class="result-section" id="resultSection">
-        <div class="result-header">
-            <h3>📝 生成结果</h3>
-            <button class="copy-btn" onclick="copyReport()">📋 复制</button>
-        </div>
-        <div class="report-box" id="reportBox"></div>
-    </div>
+<div class="header">
+<div class="badge">✨ AI 智能识别</div>
+<h1>GMV 日报生成器</h1>
+<p>粘贴或上传直播数据截图，一键生成标准格式日报</p>
 </div>
 
-<!-- 右键菜单 -->
-<div class="context-menu" id="contextMenu">
-    <div class="context-menu-item" onclick="pasteFromClipboard()">📋 粘贴图片</div>
-    <div class="context-menu-item" onclick="document.getElementById(currentMenuTarget+'Input').click()">📂 上传图片文件</div>
-    <div class="context-menu-item" onclick="clearImage(currentMenuTarget)">🗑️ 清除图片</div>
+<div class="upload-section">
+<div class="upload-box" id="gmvBox">
+<div class="upload-icon">📊</div>
+<h3>GMV 数据截图</h3>
+<div class="hint">点击 / 右键 / 拖拽 / Ctrl+V<br>任意方式上传</div>
+<input type="file" class="upload-input" id="gmvInput" accept="image/*">
+<img class="preview-img" id="gmvPreview">
+</div>
+<div class="upload-box" id="top10Box">
+<div class="upload-icon">🛒</div>
+<h3>Top10 商品截图</h3>
+<div class="hint">点击 / 右键 / 拖拽 / Ctrl+V<br>任意方式上传</div>
+<input type="file" class="upload-input" id="top10Input" accept="image/*">
+<img class="preview-img" id="top10Preview">
+</div>
 </div>
 
-<!-- 粘贴选择弹窗 -->
+<button class="btn-generate" id="genBtn" onclick="generateReport()">
+<span class="spinner" id="spinner"></span>
+<span id="btnText">⚡ 生成日报</span>
+</button>
+
+<div class="error-msg" id="errorMsg"></div>
+
+<div class="result-section" id="resultSection">
+<div class="result-header">
+<h3>📝 生成结果</h3>
+<button class="copy-btn" id="copyBtn" onclick="copyReport()">📋 复制报告</button>
+</div>
+<div class="report-box" id="reportBox"></div>
+</div>
+
+<div class="footer">GMV 日报生成器 · Powered by AI</div>
+</div>
+
+<!-- Context Menu -->
+<div class="ctx-menu" id="ctxMenu">
+<div class="ctx-item" onclick="handleCtx('paste')">📋 粘贴图片</div>
+<div class="ctx-item" onclick="handleCtx('upload')">📂 上传图片文件</div>
+<div class="ctx-sep"></div>
+<div class="ctx-item" onclick="handleCtx('clear')">🗑️ 清除图片</div>
+</div>
+
+<!-- Paste Toast -->
 <div class="toast-overlay" id="toastOverlay"></div>
 <div class="paste-toast" id="pasteToast">
-    <h4>🖼️ 检测到截图，请选择类型</h4>
-    <button class="btn-small btn-gmv" onclick="confirmPasteType('gmv')">📊 GMV 数据截图</button>
-    <button class="btn-small btn-top10" onclick="confirmPasteType('top10')">🛒 Top10 商品截图</button>
+<h4>🖼️ 检测到截图，请选择类型</h4>
+<div class="toast-btns">
+<button class="toast-btn gmv-btn" onclick="confirmPaste('gmv')">📊 GMV 数据</button>
+<button class="toast-btn top10-btn" onclick="confirmPaste('top10')">🛒 Top10 商品</button>
+</div>
 </div>
 
 <script>
-// ============ 状态 ============
-let gmvBase64 = null;
-let top10Base64 = null;
-let pendingPasteType = null;
+const API_KEY = "sk-ws-H.RYMLDHE.whau.MEYCIQDquxZlik8DU5m2K0mSSHGKcwkdJPYVXjgO98gGtq3H-QIhAIPwVswRmUE9XKvHpTOzM6LmgqD21SL69VlG5HPH8MLw";
+let gmvB64 = null, top10B64 = null, ctxWhich = null, pasteWhich = null;
 
-// ============ API Key 管理 ============
-const DASHSCOPE_API_KEY = "sk-ws-H.RYMLDHE.whau.MEYCIQDquxZlik8DU5m2K0mSSHGKcwkdJPYVXjgO98gGtq3H-QIhAIPwVswRmUE9XKvHpTOzM6LmgqD21SL69VlG5HPH8MLw";
-
-// 页面加载时恢复保存的 Key
-window.addEventListener('DOMContentLoaded', function() {
-    const savedKey = localStorage.getItem('dashscope_api_key');
-    if (savedKey) {
-        document.getElementById('apiKeyInput').value = savedKey;
-        document.getElementById('apiKeyStatus').style.display = 'inline';
-    } else {
-        document.getElementById('apiKeyInput').value = DASHSCOPE_API_KEY;
-        saveApiKey();
-    }
-});
-
-function saveApiKey() {
-    const key = document.getElementById('apiKeyInput').value.trim();
-    if (!key) { alert('请输入 API Key'); return; }
-    localStorage.setItem('dashscope_api_key', key);
-    document.getElementById('apiKeyStatus').style.display = 'inline';
-    setTimeout(() => { document.getElementById('apiKeyStatus').style.display = 'none'; }, 2000);
+// ===== Upload setup =====
+function setup(boxId, inpId, prevId, isGmv) {
+    const box = document.getElementById(boxId);
+    const inp = document.getElementById(inpId);
+    const prev = document.getElementById(prevId);
+    box.onclick = (e) => { if (e.target.tagName !== 'IMG') inp.click(); };
+    inp.onchange = () => { if (inp.files[0]) loadImg(inp.files[0], prev, isGmv, box); };
+    box.ondragover = (e) => { e.preventDefault(); box.style.borderColor = '#818cf8'; };
+    box.ondragleave = () => { box.style.borderColor = ''; };
+    box.ondrop = (e) => { e.preventDefault(); box.style.borderColor = ''; if (e.dataTransfer.files[0]) loadImg(e.dataTransfer.files[0], prev, isGmv, box); };
 }
-
-function getApiKey() {
-    return localStorage.getItem('dashscope_api_key') || DASHSCOPE_API_KEY;
-}
-
-// ============ 文件处理 ============
-function handleFile(e, type) {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = function(ev) {
-        const base64 = ev.target.result.split(',')[1];
-        if (type === 'gmv') {
-            gmvBase64 = base64;
-            document.getElementById('gmvPreview').src = ev.target.result;
-            document.getElementById('gmvPreview').style.display = 'block';
-            document.getElementById('gmvBox').classList.add('has-image');
-        } else {
-            top10Base64 = base64;
-            document.getElementById('top10Preview').src = ev.target.result;
-            document.getElementById('top10Preview').style.display = 'block';
-            document.getElementById('top10Box').classList.add('has-image');
-        }
+function loadImg(file, prev, isGmv, box) {
+    if (!file.type.startsWith('image/')) return alert('请上传图片');
+    const r = new FileReader();
+    r.onload = (e) => {
+        prev.src = e.target.result;
+        prev.style.display = 'block';
+        box.classList.add('has-image');
+        const b64 = e.target.result.split(',')[1] || '';
+        if (isGmv) gmvB64 = b64; else top10B64 = b64;
     };
-    reader.readAsDataURL(file);
+    r.readAsDataURL(file);
 }
+setup('gmvBox', 'gmvInput', 'gmvPreview', true);
+setup('top10Box', 'top10Input', 'top10Preview', false);
 
-// ============ 拖拽上传 ============
-['gmvBox','top10Box'].forEach(id => {
-    const el = document.getElementById(id);
-    const type = id === 'gmvBox' ? 'gmv' : 'top10';
-    el.addEventListener('dragover', e => { e.preventDefault(); el.style.borderColor = '#4caf50'; });
-    el.addEventListener('dragleave', e => { el.style.borderColor = '#c8e6c9'; });
-    el.addEventListener('drop', e => {
-        e.preventDefault();
-        el.style.borderColor = '#c8e6c9';
-        const file = e.dataTransfer.files[0];
-        if (file && file.type.startsWith('image/')) {
-            const reader = new FileReader();
-            reader.onload = function(ev) {
-                const base64 = ev.target.result.split(',')[1];
-                if (type === 'gmv') {
-                    gmvBase64 = base64;
-                    document.getElementById('gmvPreview').src = ev.target.result;
-                    document.getElementById('gmvPreview').style.display = 'block';
-                    document.getElementById('gmvBox').classList.add('has-image');
-                } else {
-                    top10Base64 = base64;
-                    document.getElementById('top10Preview').src = ev.target.result;
-                    document.getElementById('top10Preview').style.display = 'block';
-                    document.getElementById('top10Box').classList.add('has-image');
-                }
-            };
-            reader.readAsDataURL(file);
-        }
-    });
-});
-
-// ============ 右键菜单 ============
-let currentMenuTarget = null;
-const contextMenu = document.getElementById('contextMenu');
-
-function showContextMenu(e, type) {
-    e.preventDefault();
-    currentMenuTarget = type;
-    contextMenu.style.left = e.pageX + 'px';
-    contextMenu.style.top = e.pageY + 'px';
-    contextMenu.classList.add('show');
+// ===== Context menu =====
+document.getElementById('gmvBox').oncontextmenu = (e) => { e.preventDefault(); ctxWhich = 'gmv'; showCtx(e); };
+document.getElementById('top10Box').oncontextmenu = (e) => { e.preventDefault(); ctxWhich = 'top10'; showCtx(e); };
+function showCtx(e) {
+    const m = document.getElementById('ctxMenu');
+    m.style.left = e.pageX + 'px'; m.style.top = e.pageY + 'px';
+    m.classList.add('show');
 }
-
-document.addEventListener('click', () => contextMenu.classList.remove('show'));
-
-function clearImage(type) {
-    if (type === 'gmv') {
-        gmvBase64 = null;
-        document.getElementById('gmvPreview').style.display = 'none';
-        document.getElementById('gmvInput').value = '';
-        document.getElementById('gmvBox').classList.remove('has-image');
-    } else {
-        top10Base64 = null;
-        document.getElementById('top10Preview').style.display = 'none';
-        document.getElementById('top10Input').value = '';
-        document.getElementById('top10Box').classList.remove('has-image');
+document.addEventListener('click', () => document.getElementById('ctxMenu').classList.remove('show'));
+function handleCtx(act) {
+    document.getElementById('ctxMenu').classList.remove('show');
+    const isG = ctxWhich === 'gmv';
+    const box = document.getElementById(isG ? 'gmvBox' : 'top10Box');
+    const inp = document.getElementById(isG ? 'gmvInput' : 'top10Input');
+    const prev = document.getElementById(isG ? 'gmvPreview' : 'top10Preview');
+    if (act === 'paste') doPaste(isG);
+    else if (act === 'upload') inp.click();
+    else if (act === 'clear') {
+        if (isG) gmvB64 = null; else top10B64 = null;
+        inp.value = ''; prev.style.display = 'none'; box.classList.remove('has-image');
     }
-    contextMenu.classList.remove('show');
 }
 
-// ============ 粘贴功能 ============
-document.addEventListener('paste', function(e) {
-    const items = e.clipboardData.items;
-    let imageFound = false;
-    for (let i = 0; i < items.length; i++) {
-        if (items[i].type.indexOf('image') !== -1) {
-            imageFound = true;
-            const file = items[i].getAsFile();
-            const reader = new FileReader();
-            reader.onload = function(ev) {
-                const base64 = ev.target.result.split(',')[1];
-                // 判断粘贴到哪个框
-                if (!gmvBase64 && !top10Base64) {
-                    // 两个都空，弹窗选择
-                    pendingPasteType = null;
-                    document.getElementById('toastOverlay').classList.add('show');
-                    document.getElementById('pasteToast').classList.add('show');
-                    window._pendingBase64 = base64;
-                } else if (!gmvBase64) {
-                    gmvBase64 = base64;
-                    document.getElementById('gmvPreview').src = ev.target.result;
-                    document.getElementById('gmvPreview').style.display = 'block';
-                    document.getElementById('gmvBox').classList.add('has-image');
-                } else if (!top10Base64) {
-                    top10Base64 = base64;
-                    document.getElementById('top10Preview').src = ev.target.result;
-                    document.getElementById('top10Preview').style.display = 'block';
-                    document.getElementById('top10Box').classList.add('has-image');
-                } else {
-                    // 两个都有，替换 GMV
-                    gmvBase64 = base64;
-                    document.getElementById('gmvPreview').src = ev.target.result;
-                    document.getElementById('gmvPreview').style.display = 'block';
-                    document.getElementById('gmvBox').classList.add('has-image');
-                }
-            };
-            reader.readAsDataURL(file);
-            break;
+// ===== Paste =====
+document.addEventListener('paste', (e) => {
+    const items = e.clipboardData ? e.clipboardData.items : null;
+    if (!items) return;
+    for (const it of items) {
+        if (it.type && it.type.startsWith('image/')) {
+            e.preventDefault();
+            const f = it.getAsFile();
+            if (f) routePaste(f);
+            return;
         }
     }
-    if (imageFound) e.preventDefault();
 });
-
-function confirmPasteType(type) {
-    const base64 = window._pendingBase64;
-    if (type === 'gmv') {
-        gmvBase64 = base64;
-        const src = 'data:image/png;base64,' + base64;
-        document.getElementById('gmvPreview').src = src;
-        document.getElementById('gmvPreview').style.display = 'block';
-        document.getElementById('gmvBox').classList.add('has-image');
+function routePaste(file) {
+    if (!gmvB64 && !top10B64) {
+        // ask
+        document.getElementById('toastOverlay').classList.add('show');
+        document.getElementById('pasteToast').classList.add('show');
+        pasteWhich = null;
+    } else if (!gmvB64) {
+        loadImg(file, document.getElementById('gmvPreview'), true, document.getElementById('gmvBox'));
+    } else if (!top10B64) {
+        loadImg(file, document.getElementById('top10Preview'), false, document.getElementById('top10Box'));
     } else {
-        top10Base64 = base64;
-        const src = 'data:image/png;base64,' + base64;
-        document.getElementById('top10Preview').src = src;
-        document.getElementById('top10Preview').style.display = 'block';
-        document.getElementById('top10Box').classList.add('has-image');
+        // both filled, ask
+        document.getElementById('toastOverlay').classList.add('show');
+        document.getElementById('pasteToast').classList.add('show');
+        pasteWhich = null;
     }
+}
+function doPaste(isGmv) {
+    navigator.clipboard.read().then(items => {
+        for (const it of items) {
+            for (const t of it.types) {
+                if (t.startsWith('image/')) {
+                    it.getType(t).then(blob => {
+                        const f = new File([blob], 'paste.png');
+                        if (pasteWhich) {
+                            const isG = pasteWhich === 'gmv';
+                            loadImg(f, document.getElementById(isG ? 'gmvPreview' : 'top10Preview'), isG, document.getElementById(isG ? 'gmvBox' : 'top10Box'));
+                        } else {
+                            loadImg(f, document.getElementById(isGmv ? 'gmvPreview' : 'top10Preview'), isGmv, document.getElementById(isGmv ? 'gmvBox' : 'top10Box'));
+                        }
+                    });
+                    return;
+                }
+            }
+        }
+    }).catch(() => alert('无法读取剪贴板，请尝试点击上传'));
+}
+function confirmPaste(type) {
     document.getElementById('toastOverlay').classList.remove('show');
     document.getElementById('pasteToast').classList.remove('show');
+    pasteWhich = type;
+    doPaste(type === 'gmv');
 }
 
-contextMenu.addEventListener('click', e => e.stopPropagation());
-
-function pasteFromClipboard() {
-    contextMenu.classList.remove('show');
-    // 触发粘贴事件
-    const dataTransfer = new DataTransfer();
-    navigator.clipboard.read().then(items => {
-        for (const item of items) {
-            for (const type of item.types) {
-                if (type.startsWith('image')) {
-                    item.getType(type).then(blob => {
-                        const reader = new FileReader();
-                        reader.onload = function(ev) {
-                            const base64 = ev.target.result.split(',')[1];
-                            const target = currentMenuTarget;
-                            if (target === 'gmv') {
-                                gmvBase64 = base64;
-                                document.getElementById('gmvPreview').src = ev.target.result;
-                                document.getElementById('gmvPreview').style.display = 'block';
-                                document.getElementById('gmvBox').classList.add('has-image');
-                            } else {
-                                top10Base64 = base64;
-                                document.getElementById('top10Preview').src = ev.target.result;
-                                document.getElementById('top10Preview').style.display = 'block';
-                                document.getElementById('top10Box').classList.add('has-image');
-                            }
-                        };
-                        reader.readAsDataURL(blob);
-                    });
-                }
-            }
-        }
-    }).catch(() => {
-        alert('无法读取剪贴板，请手动上传图片');
-    });
-}
-
-// ============ 调用 AI ============
-async function callVisionAPI(prompt, base64Images) {
-    const key = getApiKey();
-    const images = base64Images.map(b64 => ({
-        type: 'image_url',
-        image_url: { url: `data:image/jpeg;base64,${b64}` }
-    }));
-    const body = {
-        model: 'qwen-vl-max',
-        messages: [{ role: 'user', content: [{ type: 'text', text: prompt }, ...images] }],
-        max_tokens: 2000
-    };
-    const resp = await fetch('https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation', {
-        method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${key}`,
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(body)
-    });
-    const data = await resp.json();
-    if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
-    return data.choices?.[0]?.message?.content || data.output?.text || JSON.stringify(data);
-}
-
-// ============ 生成报告 ============
+// ===== Generate =====
 async function generateReport() {
-    if (!gmvBase64 && !top10Base64) { showError('请至少上传一张截图'); return; }
-    const apiKey = getApiKey();
-    if (!apiKey) { showError('请先输入并保存 API Key'); return; }
-
-    document.getElementById('generateBtn').disabled = true;
-    document.getElementById('loading').classList.add('show');
+    if (!gmvB64 && !top10B64) { showErr('请至少上传一张截图'); return; }
+    const btn = document.getElementById('genBtn');
+    const spin = document.getElementById('spinner');
+    btn.disabled = true; spin.style.display = 'inline-block';
     document.getElementById('errorMsg').classList.remove('show');
-    document.getElementById('resultSection').classList.remove('show');
-
     try {
         let report = '';
-
-        // 获取今天日期
-        const today = new Date();
-        const mm = String(today.getMonth() + 1).padStart(2, '0');
-        const dd = String(today.getDate()).padStart(2, '0');
-        const dateStr = `${mm}.${dd}`;
-
-        // 第一步：识别 GMV 数据
-        let gmvSection = '';
-        if (gmvBase64) {
-            const gmvPrompt = `你是一个数据分析助手。请仔细识别图片中的GMV数据表格，提取以下信息并以JSON格式返回：
-1. 各直播间的GMV数值（注意：会员店必须排在第一位，即使截图中不在第一位）
-2. 会员开卡/续卡人数
-
-返回格式：
-{
-  "rooms": [{"name": "会员店", "gmv": 12345.67}, ...],
-  "member_new": 2,
-  "member_renew": 0
-}
-
-注意：
-- 截图中的账号名称可能是：会员店、甄选号、自营产品、生鲜号、生活馆、果蔬号、甄选漫谈、诗酒人生、美丽生活、亲子生活、看世界、营养健康等，请原样提取
-- GMV数值要准确，不要漏掉小数点
-- 如果截图中没有会员店的数据，会员店的GMV写"待填入"`;
-
-            const gmvResult = await callVisionAPI(gmvPrompt, [gmvBase64]);
-            gmvSection = gmvResult;
+        if (gmvB64) report = await callAI(gmvPrompt(), gmvB64);
+        if (top10B64) {
+            const t10 = await callAI(top10Prompt(), top10B64);
+            if (report) {
+                const idx = report.indexOf('今日top10商品：');
+                if (idx !== -1) report = report.substring(0, idx) + t10;
+                else report += '\n\n' + t10;
+            } else report = t10;
         }
-
-        // 第二步：识别 Top10 商品
-        let top10Section = '';
-        if (top10Base64) {
-            const top10Prompt = `请仔细识别图片中的Top10商品列表，按顺序提取商品名称，返回格式：
-1. 商品名1
-2. 商品名2
-...
-10. 商品名10
-
-注意：商品名称要完整，不要截断。`;
-
-            const top10Result = await callVisionAPI(top10Prompt, [top10Base64]);
-            top10Section = top10Result;
-        }
-
-        // 组装最终报告
-        report = assembleReport(dateStr, gmvSection, top10Section);
-
-        document.getElementById('reportBox').textContent = report;
-        document.getElementById('resultSection').classList.add('show');
-
-    } catch (err) {
-        showError('生成失败：' + err.message);
+        showRes(report);
+    } catch(err) {
+        showErr('生成失败：' + err.message);
     } finally {
-        document.getElementById('loading').classList.remove('show');
-        document.getElementById('generateBtn').disabled = false;
+        btn.disabled = false; spin.style.display = 'none';
     }
 }
+function gmvPrompt() {
+    return `你是一个电商直播数据分析助手。请从这张GMV数据截图中提取信息，严格按照格式输出：
 
-function assembleReport(dateStr, gmvText, top10Text) {
-    // 尝试从 AI 返回的文本中提取结构化数据
-    let rooms = [];
-    let memberNew = '?';
-    let memberRenew = '?';
+【输出格式】
+M月D日
 
-    // 提取 GMV 数据（简单解析）
-    const gmvLines = gmvText.split('\n');
-    for (const line of gmvLines) {
-        const match = line.match(/["']?name["']?\\s*[:：]\\s*["']?([^"',]+)["']?.*?gmv["']?\\s*[:：]\\s*([\\d.]+)/i);
-        if (match) {
-            rooms.push({ name: match[1].trim(), gmv: parseFloat(match[2]) });
-        }
-    }
+总gmv：总GMV数字（保留两位小数，用逗号分隔千位）
 
-    // 如果解析失败，直接使用 AI 返回的文本
-    let gmvBlock = '';
-    if (rooms.length > 0) {
-        // 计算总 GMV
-        const totalGMV = rooms.reduce((s, r) => s + r.gmv, 0);
-        gmvBlock += `总gmv：${totalGMV.toLocaleString('en', {minimumFractionDigits:2, maximumFractionDigits:2})}\n`;
-        gmvBlock += `\n会员开卡/续卡人数：${memberNew}/${memberRenew}\n`;
-        gmvBlock += `\n各直播间gmv\n`;
-        // 会员店排第一
-        const hy = rooms.find(r => r.name.includes('会员') || r.name.includes('会员店'));
-        if (hy) gmvBlock += `\n${hy.name}：${hy.gmv.toLocaleString('en', {minimumFractionDigits:2, maximumFractionDigits:2})}\n`;
-        for (const r of rooms) {
-            if (r !== hy) {
-                gmvBlock += `\n${r.name}：${r.gmv.toLocaleString('en', {minimumFractionDigits:2, maximumFractionDigits:2})}\n`;
-            }
-        }
-    } else {
-        // 直接用 AI 返回的文本
-        gmvBlock = gmvText;
-    }
+会员开卡/续卡人数：开卡人数/续卡人数（如果截图没有则写"待确认"）
 
-    let report = `${dateStr}\n\n${gmvBlock}\n\n今日top10商品：\n\n${top10Text}`;
-    return report;
+各直播间gmv
+（每个直播间占一行，格式：账号名：GMV数字，保留两位小数，用逗号分隔千位）
+（必须包含"会员店/会员号"，排在所有直播间第一个；截图中没有的账号不写）
+
+今日top10商品：
+1. 商品全名1
+2. 商品全名2
+...
+10. 商品全名10
+
+【重要规则】
+- 日期：从截图中识别日期，格式 M.D（如 6.24）
+- 总GMV：把所有直播间GMV相加自己计算，不要直接用截图中的"总GMV"
+- 直播间列表：只输出截图中出现的直播间，不要预设固定列表，新增的账号也要写上，当天没有的账号不要写，每个直播间独立一行
+- 会员店/会员号：如果截图中有这个账号，必须排在第一个；如果没有，则不写
+- top10商品：如果截图中没有top10商品信息，则写"今日top10商品：待上传截图"
+- 数字格式：保留两位小数，千位用逗号分隔（如 75,936.55）
+- 每个字段之间用一个空行分隔`;
 }
+function top10Prompt() {
+    return `请从这张top10商品截图提取商品名称列表，严格按照以下格式输出：
 
-// ============ 工具函数 ============
-function showError(msg) {
-    const el = document.getElementById('errorMsg');
-    el.textContent = msg;
-    el.classList.add('show');
+今日top10商品：
+1. 完整的商品名称1（不要截断，尽量还原完整名称）
+2. 完整的商品名称2
+...
+10. 完整的商品名称10
+
+【重要】商品名称必须完整，不要截断。如果名称很长，也要完整输出。`;
 }
-
+async function callAI(prompt, b64) {
+    const body = {
+        model: 'qwen-vl-max',
+        messages: [{ role: 'user', content: [
+            { type: 'text', text: prompt },
+            { type: 'image_url', image_url: { url: 'data:image/png;base64,' + b64 } }
+        ]}]
+    };
+    const resp = await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + API_KEY },
+        body: JSON.stringify(body)
+    });
+    if (!resp.ok) throw new Error('API错误 ' + resp.status);
+    const data = await resp.json();
+    return data.choices[0].message.content.trim();
+}
+function showErr(msg) {
+    const e = document.getElementById('errorMsg');
+    e.textContent = msg; e.classList.add('show');
+}
+function showRes(text) {
+    document.getElementById('reportBox').textContent = text;
+    document.getElementById('resultSection').classList.add('show');
+    document.getElementById('resultSection').scrollIntoView({ behavior: 'smooth' });
+}
 function copyReport() {
     const text = document.getElementById('reportBox').textContent;
     navigator.clipboard.writeText(text).then(() => {
-        const btn = document.querySelector('.copy-btn');
+        const btn = document.getElementById('copyBtn');
         btn.textContent = '✅ 已复制';
-        setTimeout(() => { btn.textContent = '📋 复制'; }, 2000);
+        btn.classList.add('copied');
+        setTimeout(() => { btn.textContent = '📋 复制报告'; btn.classList.remove('copied'); }, 2000);
     });
-}
-
-function resetAll() {
-    gmvBase64 = null;
-    top10Base64 = null;
-    document.getElementById('gmvInput').value = '';
-    document.getElementById('top10Input').value = '';
-    document.getElementById('gmvPreview').style.display = 'none';
-    document.getElementById('top10Preview').style.display = 'none';
-    document.getElementById('gmvBox').classList.remove('has-image');
-    document.getElementById('top10Box').classList.remove('has-image');
-    document.getElementById('resultSection').classList.remove('show');
-    document.getElementById('errorMsg').classList.remove('show');
 }
 </script>
 </body>
