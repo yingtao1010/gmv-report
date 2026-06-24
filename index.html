@@ -123,7 +123,6 @@ body{font-family:'PingFang SC','Microsoft YaHei',-apple-system,sans-serif;backgr
 </div>
 
 <script>
-const WORKER_URL = "https://gmv-report-proxy.your-subdomain.workers.dev";  // ← 部署 Worker 后替换成你的实际地址
 let gmvB64 = null, top10B64 = null, ctxWhich = null, pasteWhich = null;
 
 // ===== Upload setup =====
@@ -240,76 +239,23 @@ async function generateReport() {
     btn.disabled = true; spin.style.display = 'inline-block';
     document.getElementById('errorMsg').classList.remove('show');
     try {
-        let report = '';
-        if (gmvB64) report = await callAI(gmvPrompt(), gmvB64);
-        if (top10B64) {
-            const t10 = await callAI(top10Prompt(), top10B64);
-            if (report) {
-                const idx = report.indexOf('今日top10商品：');
-                if (idx !== -1) report = report.substring(0, idx) + t10;
-                else report += '\n\n' + t10;
-            } else report = t10;
-        }
-        showRes(report);
+        const payload = {};
+        if (gmvB64) payload.gmv_image = gmvB64;
+        if (top10B64) payload.top10_image = top10B64;
+        const resp = await fetch('/api/analyze', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if (!resp.ok) throw new Error('服务器错误 ' + resp.status);
+        const data = await resp.json();
+        if (!data.success) throw new Error(data.error || '生成失败');
+        showRes(data.report);
     } catch(err) {
         showErr('生成失败：' + err.message);
     } finally {
         btn.disabled = false; spin.style.display = 'none';
     }
-}
-function gmvPrompt() {
-    return `你是一个电商直播数据分析助手。请从这张GMV数据截图中提取信息，严格按照格式输出：
-
-【输出格式】
-M月D日
-
-总gmv：总GMV数字（保留两位小数，用逗号分隔千位）
-
-会员开卡/续卡人数：开卡人数/续卡人数（如果截图没有则写"待确认"）
-
-各直播间gmv
-（每个直播间占一行，格式：账号名：GMV数字，保留两位小数，用逗号分隔千位）
-（必须包含"会员店/会员号"，排在所有直播间第一个；截图中没有的账号不写）
-
-今日top10商品：
-1. 商品全名1
-2. 商品全名2
-...
-10. 商品全名10
-
-【重要规则】
-- 日期：从截图中识别日期，格式 M.D（如 6.24）
-- 总GMV：把所有直播间GMV相加自己计算，不要直接用截图中的"总GMV"
-- 直播间列表：只输出截图中出现的直播间，不要预设固定列表，新增的账号也要写上，当天没有的账号不要写，每个直播间独立一行
-- 会员店/会员号：如果截图中有这个账号，必须排在第一个；如果没有，则不写
-- top10商品：如果截图中没有top10商品信息，则写"今日top10商品：待上传截图"
-- 数字格式：保留两位小数，千位用逗号分隔（如 75,936.55）
-- 每个字段之间用一个空行分隔`;
-}
-function top10Prompt() {
-    return `请从这张top10商品截图提取商品名称列表，严格按照以下格式输出：
-
-今日top10商品：
-1. 完整的商品名称1（不要截断，尽量还原完整名称）
-2. 完整的商品名称2
-...
-10. 完整的商品名称10
-
-【重要】商品名称必须完整，不要截断。如果名称很长，也要完整输出。`;
-}
-async function callAI(prompt, b64) {
-    const resp = await fetch(WORKER_URL + '/api/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: prompt, image: 'data:image/png;base64,' + b64 })
-    });
-    if (!resp.ok) {
-        const errData = await resp.json().catch(() => ({}));
-        throw new Error(errData.error || '请求失败 ' + resp.status);
-    }
-    const data = await resp.json();
-    if (!data.success) throw new Error(data.error || '生成失败');
-    return data.result;
 }
 function showErr(msg) {
     const e = document.getElementById('errorMsg');
